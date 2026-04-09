@@ -4,7 +4,7 @@ Live launch monitoring dashboard for upcoming rocket missions worldwide.
 
 ## Features
 
-- Real upcoming launch data from The Space Devs Launch Library 2 API
+- Real upcoming launch data generated from live APIs at deploy time
 - Live countdown to the next launch (updates every second)
 - Mission name, rocket type, launch site, and launch date/time
 - Responsive, polished interface for desktop and mobile
@@ -25,5 +25,6 @@ After deployment, your site URL will be shown in the Actions run summary and Pag
 
 ## Data source
 
-- API: `https://ll.thespacedevs.com/2.2.0/launch/upcoming/`
-- Provider: The Space Devs Launch Library 2
+- Primary API: The Space Devs Launch Library 2
+- Fallback API: RocketLaunch Live
+- The GitHub Actions workflow fetches current launch data, writes `launches.json`, and deploys the site from the generated `dist` folder.

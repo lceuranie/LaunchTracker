@@ -1,3 +1,4 @@
+const LOCAL_DATA_URL = "./launches.json";
 const PRIMARY_API_URL =
   "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=20&ordering=net";
 const FALLBACK_API_URL = "https://fdo.rocketlaunch.live/json/launches/next/20";
@@ -7,9 +8,11 @@ const nextLaunchContent = document.getElementById("next-launch-content");
 const launchList = document.getElementById("launch-list");
 const launchCardTemplate = document.getElementById("launch-card-template");
 const updatedAt = document.getElementById("updated-at");
+const launchDataScript = document.getElementById("launch-data");
 
 let launches = [];
 let countdownInterval;
+let activeSource = "Local feed";
 
 function parseDate(value) {
   const date = new Date(value);
@@ -68,6 +71,50 @@ function normalizeFallbackLaunches(data) {
       };
     })
     .filter(Boolean);
+}
+
+function normalizeLocalLaunches(data) {
+  if (!Array.isArray(data.launches)) {
+    return [];
+  }
+
+  return data.launches
+    .map((item) => {
+      const net = parseDate(item.net);
+      if (!net) {
+        return null;
+      }
+
+      return {
+        mission: item.mission || "Mission pending",
+        rocket: item.rocket || "Rocket pending",
+        site: item.site || "Site pending",
+        net,
+      };
+    })
+    .filter(Boolean);
+}
+
+function loadInlineLaunches() {
+  if (!launchDataScript?.textContent) {
+    return [];
+  }
+
+  const data = JSON.parse(launchDataScript.textContent);
+  if (!Array.isArray(data.launches) || !data.launches.length) {
+    return [];
+  }
+
+  const normalized = normalizeLocalLaunches(data);
+  if (!normalized.length) {
+    return [];
+  }
+
+  launches = normalized;
+  updateTimestamp(data.source || "Live feed");
+  renderNextLaunch();
+  renderLaunchList();
+  return normalized;
 }
 
 function formatLaunchDate(date) {
@@ -183,11 +230,32 @@ function renderLaunchList() {
 }
 
 function updateTimestamp(sourceName) {
+  activeSource = sourceName;
   updatedAt.textContent = `Updated ${new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date())} • ${sourceName}`;
+}
+
+async function loadLocalLaunches() {
+  const response = await fetch(LOCAL_DATA_URL, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Local launch feed returned ${response.status}`);
+  }
+
+  const data = await response.json();
+  const normalized = normalizeLocalLaunches(data);
+
+  if (!normalized.length) {
+    throw new Error("Local launch feed contained no usable launches");
+  }
+
+  launches = normalized;
+  updateTimestamp(data.source || "Local feed");
+  renderNextLaunch();
+  renderLaunchList();
 }
 
 async function fetchJson(url) {
@@ -205,36 +273,46 @@ async function fetchJson(url) {
 
 async function loadLaunches() {
   try {
-    const primaryData = await fetchJson(PRIMARY_API_URL);
-    launches = normalizePrimaryLaunches(primaryData);
-
-    if (!launches.length) {
-      throw new Error("Primary API returned no usable launch data");
+    const inlineLaunches = loadInlineLaunches();
+    if (inlineLaunches.length) {
+      return;
     }
 
-    updateTimestamp("Space Devs");
-    renderNextLaunch();
-    renderLaunchList();
-  } catch (primaryError) {
+    await loadLocalLaunches();
+  } catch (localError) {
     try {
-      const fallbackData = await fetchJson(FALLBACK_API_URL);
-      launches = normalizeFallbackLaunches(fallbackData);
+      const primaryData = await fetchJson(PRIMARY_API_URL);
+      launches = normalizePrimaryLaunches(primaryData);
 
       if (!launches.length) {
-        throw new Error("Fallback API returned no usable launch data");
+        throw new Error("Primary API returned no usable launch data");
       }
 
-      updateTimestamp("RocketLaunch Live");
+      updateTimestamp("Space Devs");
       renderNextLaunch();
       renderLaunchList();
-    } catch (fallbackError) {
-      nextLaunchContent.innerHTML =
-        '<p class="error">Unable to reach live launch feed. Please try again in a moment.</p>';
-      launchList.innerHTML =
-        '<p class="error">Launch queue unavailable due to a network or API issue.</p>';
-      updatedAt.textContent = "Update failed";
-      console.error(primaryError);
-      console.error(fallbackError);
+    } catch (primaryError) {
+      try {
+        const fallbackData = await fetchJson(FALLBACK_API_URL);
+        launches = normalizeFallbackLaunches(fallbackData);
+
+        if (!launches.length) {
+          throw new Error("Fallback API returned no usable launch data");
+        }
+
+        updateTimestamp("RocketLaunch Live");
+        renderNextLaunch();
+        renderLaunchList();
+      } catch (fallbackError) {
+        nextLaunchContent.innerHTML =
+          '<p class="error">Unable to reach live launch feed. Please try again in a moment.</p>';
+        launchList.innerHTML =
+          '<p class="error">Launch queue unavailable due to a network or API issue.</p>';
+        updatedAt.textContent = "Update failed";
+        console.error(localError);
+        console.error(primaryError);
+        console.error(fallbackError);
+      }
     }
   }
 }
