@@ -48,11 +48,17 @@ function normalizePrimaryLaunches(data) {
 }
 
 function normalizeFallbackLaunches(data) {
-  if (!Array.isArray(data.result)) {
+  const results = Array.isArray(data.result)
+    ? data.result
+    : Array.isArray(data.response?.result)
+      ? data.response.result
+      : [];
+
+  if (!results.length) {
     return [];
   }
 
-  return data.result
+  return results
     .map((item) => {
       const candidate = item.t0 || item.win_open || item.sort_date * 1000;
       const net = parseDate(candidate);
