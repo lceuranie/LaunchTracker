@@ -5,6 +5,7 @@ const OUTPUT_DIR = path.join(__dirname, "..", "dist");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "launches.json");
 const TEMPLATE_FILE = path.join(__dirname, "..", "index.html");
 const OUTPUT_HTML_FILE = path.join(OUTPUT_DIR, "index.html");
+const SITE_SEPARATOR = " • ";
 
 const PRIMARY_API_URL =
   "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=20&ordering=net";
@@ -17,6 +18,21 @@ function parseDate(value) {
 
 function formatIso(date) {
   return date.toISOString();
+}
+
+function readExistingPayload() {
+  if (!fs.existsSync(OUTPUT_FILE)) {
+    return null;
+  }
+
+  const raw = fs.readFileSync(OUTPUT_FILE, "utf8");
+  const parsed = JSON.parse(raw);
+
+  if (!Array.isArray(parsed.launches) || !parsed.launches.length) {
+    return null;
+  }
+
+  return parsed;
 }
 
 function normalizePrimaryLaunches(data) {
@@ -40,7 +56,7 @@ function normalizePrimaryLaunches(data) {
         site:
           [item.pad?.name, item.pad?.location?.name, item.pad?.location?.country_code]
             .filter(Boolean)
-            .join(" • ") || "Site pending",
+            .join(SITE_SEPARATOR) || "Site pending",
         net: formatIso(net),
       };
     })
@@ -72,7 +88,7 @@ function normalizeFallbackLaunches(data) {
       return {
         mission: firstMission?.name || item.name || "Mission pending",
         rocket: item.vehicle?.name || "Rocket pending",
-        site: [item.pad?.name, locationName].filter(Boolean).join(" • ") || "Site pending",
+        site: [item.pad?.name, locationName].filter(Boolean).join(SITE_SEPARATOR) || "Site pending",
         net: formatIso(net),
       };
     })
@@ -94,6 +110,7 @@ async function fetchJson(url) {
 async function build() {
   let source = "Space Devs";
   let launches = [];
+  let usedCachedPayload = false;
 
   try {
     const primaryData = await fetchJson(PRIMARY_API_URL);
@@ -102,15 +119,29 @@ async function build() {
       throw new Error("Primary API returned no usable launch data");
     }
   } catch (primaryError) {
-    const fallbackData = await fetchJson(FALLBACK_API_URL);
-    launches = normalizeFallbackLaunches(fallbackData);
-    source = "RocketLaunch Live";
+    try {
+      const fallbackData = await fetchJson(FALLBACK_API_URL);
+      launches = normalizeFallbackLaunches(fallbackData);
+      source = "RocketLaunch Live";
 
-    if (!launches.length) {
-      throw new Error("Fallback API returned no usable launch data");
+      if (!launches.length) {
+        throw new Error("Fallback API returned no usable launch data");
+      }
+
+      console.error(primaryError);
+    } catch (fallbackError) {
+      const cachedPayload = readExistingPayload();
+      if (!cachedPayload) {
+        console.error(primaryError);
+        throw fallbackError;
+      }
+
+      launches = cachedPayload.launches;
+      source = cachedPayload.source || "Cached feed";
+      usedCachedPayload = true;
+      console.error(primaryError);
+      console.error(fallbackError);
     }
-
-    console.error(primaryError);
   }
 
   const payload = {
@@ -133,7 +164,9 @@ async function build() {
 
   fs.writeFileSync(OUTPUT_HTML_FILE, renderedHtml, "utf8");
   fs.writeFileSync(OUTPUT_FILE, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-  console.log(`Wrote ${launches.length} launches to ${OUTPUT_FILE}`);
+  console.log(
+    `Wrote ${launches.length} launches to ${OUTPUT_FILE}${usedCachedPayload ? " using cached feed" : ""}`
+  );
 }
 
 build().catch((error) => {
