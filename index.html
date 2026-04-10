@@ -14,6 +14,12 @@
       href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -40,6 +46,18 @@
         </div>
       </section>
 
+      <section class="mission-map panel" aria-labelledby="mission-map-title">
+        <div class="panel-head">
+          <div>
+            <h2 id="mission-map-title">Mission Map</h2>
+            <p class="muted">Tap a marker or mission card to inspect a launch site.</p>
+          </div>
+          <p id="map-status" class="muted">Waiting for coordinates...</p>
+        </div>
+
+        <div id="mission-map" class="mission-map-canvas" aria-label="Map of upcoming launch locations"></div>
+      </section>
+
       <section class="upcoming panel" aria-labelledby="upcoming-title">
         <div class="panel-head">
           <h2 id="upcoming-title">Upcoming Missions</h2>
@@ -59,13 +77,35 @@
           <span class="tag rocket-tag"></span>
         </div>
 
+        <div class="launch-facts" aria-label="Mission rocket and launch site">
+          <div class="fact-chip rocket-chip">
+            <img class="rocket-photo" alt="" loading="lazy" decoding="async" />
+            <span class="fact-value rocket-fact"></span>
+          </div>
+
+          <div class="fact-chip site-chip">
+            <span class="fact-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path
+                  d="M12 2.5a6.5 6.5 0 0 1 6.5 6.5c0 4.7-4.8 10.4-5.7 11.4a1 1 0 0 1-1.5 0C10.3 19.4 5.5 13.7 5.5 9A6.5 6.5 0 0 1 12 2.5Zm0 3A3.5 3.5 0 1 0 12 12a3.5 3.5 0 0 0 0-7Z"
+                />
+              </svg>
+            </span>
+            <span class="fact-value site-fact"></span>
+          </div>
+        </div>
+
         <p class="launch-time"></p>
-        <p class="launch-site"></p>
       </article>
     </template>
 
     <script id="launch-data" type="application/json">{"source":"Build pending","generatedAt":"","launches":[]}</script>
 
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
     <script src="./app.js" type="module"></script>
   </body>
 </html>
